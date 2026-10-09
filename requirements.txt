@@ -1,0 +1,31 @@
+# Core
+pandas
+numpy
+scikit-learn
+xgboost
+imbalanced-learn   # for SMOTE / class imbalance handling
+
+# PCAP / network parsing (only needed if you go beyond CSV datasets)
+scapy
+pyshark
+
+# Explainability
+shap
+
+# GenAI / RAG
+langchain
+langchain-community
+chromadb            # local vector store
+sentence-transformers
+anthropic            # or openai, depending on which LLM API you use
+
+# App / dashboard
+streamlit
+fastapi
+uvicorn
+
+# Utils
+matplotlib
+seaborn
+joblib
+python-dotenv

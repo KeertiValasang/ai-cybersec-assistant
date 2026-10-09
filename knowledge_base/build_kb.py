@@ -1,0 +1,267 @@
+"""
+Phase 5a: Build the security knowledge base.
+
+Creates one JSON document per attack category in our dataset, each
+mapped to its corresponding MITRE ATT&CK technique. This is a curated,
+hand-written knowledge base (not scraped) covering exactly the attack
+types present in CICIDS2017 -- written in plain language so an LLM can
+use it directly for grounded explanations and mitigation advice.
+
+Usage:
+    python knowledge_base/build_kb.py
+"""
+
+import json
+import os
+
+KB_DIR = os.path.dirname(__file__)
+OUTPUT_PATH = os.path.join(KB_DIR, "attack_knowledge_base.json")
+
+KNOWLEDGE_BASE = [
+    {
+        "attack_label": "DDoS",
+        "mitre_technique_id": "T1498",
+        "mitre_technique_name": "Network Denial of Service",
+        "description": (
+            "A Distributed Denial of Service attack floods a target with traffic "
+            "from many sources simultaneously, exhausting network bandwidth or "
+            "server resources so legitimate users cannot connect. Traffic typically "
+            "shows a sudden spike in connection volume from many distinct source IPs, "
+            "often with abnormally small or repetitive packet patterns."
+        ),
+        "detection_indicators": [
+            "Sudden sharp increase in flow volume / packets per second",
+            "Traffic originating from an unusually large number of distinct source IPs",
+            "Low per-connection duration with high connection rate",
+        ],
+        "mitigation": [
+            "Enable rate limiting and traffic filtering at the network edge / load balancer",
+            "Use a DDoS protection service (cloud-based scrubbing) to absorb volumetric traffic",
+            "Configure auto-scaling so legitimate capacity isn't exhausted",
+            "Blackhole or null-route traffic from confirmed malicious source ranges",
+        ],
+    },
+    {
+        "attack_label": "DoS Hulk",
+        "mitre_technique_id": "T1499",
+        "mitre_technique_name": "Endpoint Denial of Service",
+        "description": (
+            "HULK (HTTP Unbearable Load King) is an application-layer DoS tool that "
+            "generates a high volume of unique, obfuscated HTTP GET requests to a web "
+            "server, aiming to bypass caching and exhaust server resources with a "
+            "single or few source hosts rather than a distributed swarm."
+        ),
+        "detection_indicators": [
+            "High request rate to a single web endpoint from one or few source IPs",
+            "Unusually varied/randomized request parameters designed to defeat caching",
+            "Elevated server CPU/connection load with normal-looking individual requests",
+        ],
+        "mitigation": [
+            "Deploy a Web Application Firewall (WAF) with rate-based rules",
+            "Enable connection/request rate limiting per source IP",
+            "Use CAPTCHA or challenge-response for suspicious high-rate clients",
+        ],
+    },
+    {
+        "attack_label": "DoS GoldenEye",
+        "mitre_technique_id": "T1499",
+        "mitre_technique_name": "Endpoint Denial of Service",
+        "description": (
+            "GoldenEye is an HTTP DoS tool that keeps many connections open using "
+            "KeepAlive plus Cache-Control headers, exhausting the web server's "
+            "available connection pool rather than saturating bandwidth."
+        ),
+        "detection_indicators": [
+            "Large number of long-lived, low-activity HTTP connections",
+            "Server connection pool exhaustion despite modest bandwidth usage",
+        ],
+        "mitigation": [
+            "Limit maximum concurrent connections per client IP",
+            "Reduce KeepAlive timeout on the web server",
+            "Deploy a reverse proxy / WAF to absorb and filter connections",
+        ],
+    },
+    {
+        "attack_label": "DoS Slowloris",
+        "mitre_technique_id": "T1499",
+        "mitre_technique_name": "Endpoint Denial of Service",
+        "description": (
+            "Slowloris opens many connections to a web server and sends partial HTTP "
+            "requests very slowly, keeping connections open indefinitely to exhaust "
+            "the server's connection pool with minimal bandwidth."
+        ),
+        "detection_indicators": [
+            "Many connections stuck in a partially-open / incomplete-request state",
+            "Very low data throughput per connection over a long connection duration",
+        ],
+        "mitigation": [
+            "Set aggressive timeouts for incomplete HTTP requests",
+            "Use a reverse proxy (e.g. nginx) which handles slow clients more gracefully than some servers",
+            "Limit concurrent connections per source IP",
+        ],
+    },
+    {
+        "attack_label": "DoS Slowhttptest",
+        "mitre_technique_id": "T1499",
+        "mitre_technique_name": "Endpoint Denial of Service",
+        "description": (
+            "Slowhttptest is a tool for simulating slow-rate application-layer DoS "
+            "attacks (including Slowloris-style and slow POST body attacks), sending "
+            "data at an artificially low rate to hold connections open."
+        ),
+        "detection_indicators": [
+            "Abnormally low data transfer rate sustained over long connection durations",
+            "High ratio of open connections to actual completed requests",
+        ],
+        "mitigation": [
+            "Enforce minimum data rate thresholds, dropping connections that fall below it",
+            "Use request timeout and body-size limits at the web server / WAF layer",
+        ],
+    },
+    {
+        "attack_label": "PortScan",
+        "mitre_technique_id": "T1046",
+        "mitre_technique_name": "Network Service Discovery",
+        "description": (
+            "Port scanning is reconnaissance activity where an attacker probes a "
+            "range of ports on a target host to discover open services, often a "
+            "precursor to a targeted exploit attempt."
+        ),
+        "detection_indicators": [
+            "Many connection attempts to different ports on the same destination host in a short time",
+            "High proportion of failed/reset connections (closed ports)",
+            "Sequential or patterned port access order",
+        ],
+        "mitigation": [
+            "Deploy an Intrusion Detection/Prevention System (IDS/IPS) tuned for scan signatures",
+            "Use firewall rules to restrict exposed ports to only what's needed",
+            "Rate-limit or temporarily block source IPs showing scan-like behavior",
+        ],
+    },
+    {
+        "attack_label": "FTP-Patator",
+        "mitre_technique_id": "T1110",
+        "mitre_technique_name": "Brute Force",
+        "description": (
+            "Patator (FTP module) performs automated brute-force login attempts "
+            "against an FTP server, systematically trying many username/password "
+            "combinations."
+        ),
+        "detection_indicators": [
+            "High volume of failed authentication attempts against FTP in a short window",
+            "Repeated login attempts from the same source IP to the same account",
+        ],
+        "mitigation": [
+            "Enforce account lockout / exponential backoff after repeated failed logins",
+            "Require strong passwords and, where possible, key-based authentication instead of passwords",
+            "Restrict FTP access via IP allowlisting or VPN",
+        ],
+    },
+    {
+        "attack_label": "SSH-Patator",
+        "mitre_technique_id": "T1110",
+        "mitre_technique_name": "Brute Force",
+        "description": (
+            "Patator (SSH module) performs automated brute-force login attempts "
+            "against an SSH server, systematically trying many credential combinations."
+        ),
+        "detection_indicators": [
+            "High volume of failed SSH authentication attempts in a short window",
+            "Repeated connection attempts from the same source targeting SSH (port 22)",
+        ],
+        "mitigation": [
+            "Disable password authentication in favor of SSH key-based auth",
+            "Use fail2ban or similar tools to auto-block IPs after repeated failures",
+            "Move SSH to a non-default port and/or restrict via allowlist/VPN",
+        ],
+    },
+    {
+        "attack_label": "Web Attack - Brute Force",
+        "mitre_technique_id": "T1110",
+        "mitre_technique_name": "Brute Force",
+        "description": (
+            "Automated attempts to guess valid login credentials on a web "
+            "application's authentication endpoint by systematically trying many "
+            "username/password combinations."
+        ),
+        "detection_indicators": [
+            "High rate of failed login POST requests to the same endpoint",
+            "Many distinct username/password combinations tried from the same source in a short time",
+        ],
+        "mitigation": [
+            "Implement account lockout, CAPTCHA, or rate limiting on login endpoints",
+            "Enforce multi-factor authentication (MFA)",
+            "Monitor and alert on abnormal failed-login spikes",
+        ],
+    },
+    {
+        "attack_label": "Web Attack - XSS",
+        "mitre_technique_id": "T1059.007",
+        "mitre_technique_name": "Cross-Site Scripting (via Command and Scripting Interpreter: JavaScript)",
+        "description": (
+            "Cross-Site Scripting (XSS) injects malicious script into web pages "
+            "viewed by other users, typically via unsanitized input fields, to "
+            "steal session data, hijack accounts, or perform actions as the victim."
+        ),
+        "detection_indicators": [
+            "HTTP requests containing script tags or JavaScript event handlers in parameters",
+            "Unusual characters (<, >, script keywords) in form fields or URL parameters",
+        ],
+        "mitigation": [
+            "Sanitize and encode all user-supplied input before rendering in HTML",
+            "Apply a Content Security Policy (CSP) to restrict script execution sources",
+            "Use a Web Application Firewall with XSS-pattern detection rules",
+        ],
+    },
+    {
+        "attack_label": "Bot",
+        "mitre_technique_id": "T1071",
+        "mitre_technique_name": "Application Layer Protocol (C2 Communication)",
+        "description": (
+            "Botnet traffic indicates a compromised host communicating with a "
+            "command-and-control (C2) server, receiving instructions or "
+            "exfiltrating data, often as part of a larger coordinated attack "
+            "infrastructure."
+        ),
+        "detection_indicators": [
+            "Periodic, regularly-timed 'beaconing' connections to a small set of external hosts",
+            "Traffic to known-bad or newly-registered domains/IPs",
+            "Unusual protocol usage inconsistent with the host's normal role",
+        ],
+        "mitigation": [
+            "Isolate and reimage confirmed infected hosts",
+            "Block C2 domains/IPs at the DNS or firewall layer using threat intelligence feeds",
+            "Deploy endpoint detection and response (EDR) to catch beaconing behavior",
+        ],
+    },
+    {
+        "attack_label": "Rare Attack",
+        "mitre_technique_id": "Multiple (Infiltration / Heartbleed / SQL Injection)",
+        "mitre_technique_name": "Grouped rare techniques",
+        "description": (
+            "This category groups several very low-frequency attack types from the "
+            "dataset (Infiltration, Heartbleed exploitation, SQL Injection) that had "
+            "too few examples to model reliably on their own. Infiltration (T1190) "
+            "involves exploiting a public-facing application to gain internal "
+            "network access; Heartbleed exploits a TLS/OpenSSL vulnerability (CVE-2014-0160) "
+            "to leak memory contents; SQL Injection (T1190) injects malicious SQL "
+            "via unsanitized input to manipulate a backend database."
+        ),
+        "detection_indicators": [
+            "Anomalous internal network access following an external-facing service interaction",
+            "TLS heartbeat requests with mismatched length fields (Heartbleed signature)",
+            "SQL syntax or injection patterns in web request parameters",
+        ],
+        "mitigation": [
+            "Patch and update all public-facing software and TLS libraries promptly",
+            "Use parameterized queries / prepared statements to prevent SQL injection",
+            "Segment networks so a compromised public-facing service has limited internal reach",
+        ],
+    },
+]
+
+
+if __name__ == "__main__":
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+        json.dump(KNOWLEDGE_BASE, f, indent=2)
+    print(f"Saved {len(KNOWLEDGE_BASE)} knowledge base entries to {OUTPUT_PATH}")
